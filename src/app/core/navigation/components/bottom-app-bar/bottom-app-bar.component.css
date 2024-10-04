@@ -1,0 +1,10 @@
+:host {
+    & .link-wrapper {
+        display: none;
+        pointer-events: none;
+    }
+
+    & .bottom-app-bar {
+        --md-navigation-bar-container-elevation: 0;
+    }
+}
