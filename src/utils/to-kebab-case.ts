@@ -11,9 +11,17 @@ type _ToKebabCase<S extends string, IsFirst extends boolean = true> =
 
 export type ToKebabCase<S extends string> = _ToKebabCase<S>
 
+const cache = new Map<string, string>();
+
+/**
+ * Converts a string to kebab-case.
+ * Result is cached to avoid redundant regex operations.
+ */
 export function toKebabCase<S extends string>(str: S): ToKebabCase<S> {
     if (!str) return '' as ToKebabCase<S>;
-    return str
+    if (cache.has(str)) return cache.get(str) as ToKebabCase<S>;
+
+    const result = str
         // 處理 camelCase / PascalCase：在小寫或數字後接大寫字母時插入 -
         .replace(/([a-z0-9])([A-Z])/g, '$1-$2')
         // 將空格、下劃線、點等分隔符替換為 -
@@ -24,4 +32,7 @@ export function toKebabCase<S extends string>(str: S): ToKebabCase<S> {
         .replace(/-+/g, '-')
         // 去除開頭和結尾的 -
         .replace(/^-|-$/g, '') as ToKebabCase<S>;
+
+    cache.set(str, result);
+    return result;
 }

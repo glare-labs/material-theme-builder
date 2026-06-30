@@ -148,6 +148,8 @@ const Variants = [
     class ThemeController {
         private constructor() {}
 
+        private static sheet = new CSSStyleSheet();
+
         public static fromPalettesToCSS(
             palettes: {
                 name: string;
@@ -156,41 +158,69 @@ const Variants = [
                     color: number;
                 }[];
             }[],
+            formatted = false
         ) {
-            return (
-                ":root{" +
-                palettes.reduce((p, c) => {
-                    return p + c.palette.reduce((pp, cc) => pp + `--md-sys-palette-${c.name}-${cc.tone}: ${hexFromArgb(cc.color)};`, "");
-                }, "") +
-                "}"
-            );
+            let css = formatted ? "\n:root {\n" : ":root{";
+            const indent = formatted ? "    " : "";
+            const newline = formatted ? "\n" : "";
+
+            for (const c of palettes) {
+                const paletteName = toKebabCase(c.name);
+                for (const cc of c.palette) {
+                    css += `${indent}--md-sys-palette-${paletteName}-${cc.tone}: ${hexFromArgb(cc.color)};${newline}`;
+                }
+            }
+
+            css += "}";
+            return css;
         }
 
-        public static fromColorsToCSS(args: { theme: Record<"light" | "dark", { name: string; hct: Hct; palette: TonalPalette }[]>; cssStyleMode: "classic" | "scheme" }) {
-            const { cssStyleMode, theme } = args;
+        public static fromColorsToCSS(args: { theme: Record<"light" | "dark", { name: string; hct: Hct; palette: TonalPalette }[]>; cssStyleMode: "classic" | "scheme"; formatted?: boolean }) {
+            const { cssStyleMode, theme, formatted = false } = args;
             const { light, dark } = theme;
+            const indent = formatted ? "    " : "";
+            const newline = formatted ? "\n" : "";
 
             if (cssStyleMode === "classic") {
-                const lightCss = light.reduce((p, c) => p + `--md-sys-color-${toKebabCase(c.name)}: ${hexFromArgb(c.hct.toInt())};`, "");
-                const darkCss = dark.reduce((p, c) => p + `--md-sys-color-${toKebabCase(c.name)}: ${hexFromArgb(c.hct.toInt())};`, "");
-                return `:root:not([dark]){${lightCss}}:root[dark]{${darkCss}}`;
+                let lightCss = formatted ? "\n:root:not([dark]) {\n" : ":root:not([dark]){";
+                for (const c of light) {
+                    lightCss += `${indent}--md-sys-color-${toKebabCase(c.name)}: ${hexFromArgb(c.hct.toInt())};${newline}`;
+                }
+                lightCss += "}";
+
+                let darkCss = formatted ? "\n:root[dark] {\n" : ":root[dark]{";
+                for (const c of dark) {
+                    darkCss += `${indent}--md-sys-color-${toKebabCase(c.name)}: ${hexFromArgb(c.hct.toInt())};${newline}`;
+                }
+                darkCss += "}";
+
+                return lightCss + darkCss;
             } else {
                 const lightDarkSchemeMap = new Map<string, [string, string]>([]);
-                light.forEach((c) => {
-                    lightDarkSchemeMap.set(toKebabCase(c.name), [hexFromArgb(c.hct.toInt()).toString(), hexFromArgb(c.hct.toInt()).toString()]);
-                });
-                dark.forEach((c) => {
-                    const lightValue = lightDarkSchemeMap.get(toKebabCase(c.name))![0];
-                    lightDarkSchemeMap.set(toKebabCase(c.name), [lightValue, hexFromArgb(c.hct.toInt()).toString()]);
-                });
-                return `:root{${[...lightDarkSchemeMap.entries()].reduce((p, [k, v]) => p + `--md-sys-color-${k}: light-dark(${v[0]}, ${v[1]});`, "")}}`;
+                for (const c of light) {
+                    const color = hexFromArgb(c.hct.toInt()).toString();
+                    lightDarkSchemeMap.set(toKebabCase(c.name), [color, color]);
+                }
+                for (const c of dark) {
+                    const name = toKebabCase(c.name);
+                    const lightValue = lightDarkSchemeMap.get(name)?.[0] ?? "";
+                    lightDarkSchemeMap.set(name, [lightValue, hexFromArgb(c.hct.toInt()).toString()]);
+                }
+
+                let css = formatted ? "\n:root {\n" : ":root{";
+                for (const [k, v] of lightDarkSchemeMap) {
+                    css += `${indent}--md-sys-color-${k}: light-dark(${v[0]}, ${v[1]});${newline}`;
+                }
+                css += "}";
+                return css;
             }
         }
 
         public static updateTheme(style: string) {
-            const sheet = new CSSStyleSheet();
-            sheet.replaceSync(style);
-            document.adoptedStyleSheets = [sheet];
+            this.sheet.replaceSync(style);
+            if (!document.adoptedStyleSheets.includes(this.sheet)) {
+                document.adoptedStyleSheets = [...document.adoptedStyleSheets, this.sheet];
+            }
         }
     }
 
@@ -241,30 +271,44 @@ const Variants = [
                         neutralVariantPalette: config.neutralVariantPalette ? TonalPalette.fromInt(argbFromHex(config.neutralVariantPalette)) : undefined,
                     },
                 });
-                const tokensCSS = ThemeController.fromColorsToCSS({ theme, cssStyleMode: config.cssStyleMode });
-                const palettes = Object.entries(theme.palettes).map(([key, palette]) => ({
-                    name: key.replace("Palette", ""),
+                const tones = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100];
+                const paletteList = [
+                    { name: "primary", palette: theme.palettes.primaryPalette },
+                    { name: "secondary", palette: theme.palettes.secondaryPalette },
+                    { name: "tertiary", palette: theme.palettes.tertiaryPalette },
+                    { name: "error", palette: theme.palettes.errorPalette },
+                    { name: "neutral", palette: theme.palettes.neutralPalette },
+                    { name: "neutral-variant", palette: theme.palettes.neutralVariantPalette },
+                ].map((p) => ({
+                    name: p.name,
                     palette: MaterialPaletteService.createPalette({
-                        palette,
-                        tones: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100],
+                        palette: p.palette,
+                        tones,
                     }),
                 }));
-                const palettesCSS = ThemeController.fromPalettesToCSS(palettes);
 
-                const keyColors =
-                    `--md-sys-color-primary-key-color:${hexFromArgb(theme.palettes.primaryPalette.keyColor.toInt())};` +
-                    `--md-sys-color-secondary-key-color:${hexFromArgb(theme.palettes.secondaryPalette.keyColor.toInt())};` +
-                    `--md-sys-color-tertiary-key-color:${hexFromArgb(theme.palettes.tertiaryPalette.keyColor.toInt())};` +
-                    `--md-sys-color-error-key-color:${hexFromArgb(theme.palettes.errorPalette.keyColor.toInt())};` +
-                    `--md-sys-color-neutral-key-color:${hexFromArgb(theme.palettes.neutralPalette.keyColor.toInt())};` +
-                    `--md-sys-color-neutral-variant-key-color:${hexFromArgb(theme.palettes.neutralVariantPalette.keyColor.toInt())};`;
+                const tokensCSS = ThemeController.fromColorsToCSS({ theme, cssStyleMode: config.cssStyleMode });
+                const palettesCSS = ThemeController.fromPalettesToCSS(paletteList);
 
-                const allCss = (`:root{${keyColors}}` + tokensCSS + palettesCSS).replaceAll("--md", "\n    --md").replaceAll("neutralVariant", "neutral-variant").replaceAll(":root{", "\n:root{").replaceAll("}", "\n}\n");
+                const keyColorsList = [
+                    ["primary-key-color", theme.palettes.primaryPalette.keyColor.toInt()],
+                    ["secondary-key-color", theme.palettes.secondaryPalette.keyColor.toInt()],
+                    ["tertiary-key-color", theme.palettes.tertiaryPalette.keyColor.toInt()],
+                    ["error-key-color", theme.palettes.errorPalette.keyColor.toInt()],
+                    ["neutral-key-color", theme.palettes.neutralPalette.keyColor.toInt()],
+                    ["neutral-variant-key-color", theme.palettes.neutralVariantPalette.keyColor.toInt()],
+                ];
 
-                ThemeController.updateTheme(allCss);
+                const keyColors = `:root{${keyColorsList.map(([name, color]) => `--md-sys-color-${name}:${hexFromArgb(color as number)};`).join("")}}`;
+
+                ThemeController.updateTheme(keyColors + tokensCSS + palettesCSS);
 
                 if (codeElement) {
-                    codeElement.textContent = allCss;
+                    const tokensCSSFormatted = ThemeController.fromColorsToCSS({ theme, cssStyleMode: config.cssStyleMode, formatted: true });
+                    const palettesCSSFormatted = ThemeController.fromPalettesToCSS(paletteList, true);
+                    const keyColorsFormatted = `\n:root {\n${keyColorsList.map(([name, color]) => `    --md-sys-color-${name}: ${hexFromArgb(color as number)};`).join("\n")}\n}\n`;
+
+                    codeElement.textContent = keyColorsFormatted + tokensCSSFormatted + palettesCSSFormatted;
                 }
 
                 if (timer !== null) {

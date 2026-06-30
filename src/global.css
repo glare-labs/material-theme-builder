@@ -1,7 +1,7 @@
 @import "tailwindcss";
-@import "@sandlada/material-design-css/color/tailwind-theme.css";
-@import "@sandlada/material-design-css/typography/tailwind-theme.css";
-@import "@sandlada/material-design-css/typography/tailwind-utilities.css";
+@import "@sandlada/material-design-css/color/tw.css";
+@import "@sandlada/material-design-css/typography/tw.css";
+@import "@sandlada/material-design-css/typography/utilities.css";
 
 :root:not([dark]) {
     color-scheme: light;
