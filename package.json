@@ -7,7 +7,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
+    "build": "find node_modules/@material/material-color-utilities/ -name \"*.js\" -exec sed -i \"s|from '\\(.*\\)'|from '\\1.js'|g\" {} + && find node_modules/@material/material-color-utilities/ -name \"*.js\" -exec sed -i \"s|\\.js\\.js'|.js'|g\" {} + && astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
